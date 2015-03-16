@@ -1,0 +1,39 @@
+<html>
+	<head>
+		<title>Tower Defence</title>
+		<link rel="shortcut icon" href="favicon.ico" type="image/x-icon" /> 
+		<link href="master.css" rel="stylesheet" type="text/css" />
+		<script src='qt.js'></script>
+		<script src="td.v3.js"></script>
+	</head>
+	<body>
+	
+	<div id = 'gameMessages'></div>
+	<div id = 'gameObjects'> 
+		<div id = 'gameButtons'>
+			<div id = 'gameMenu'>
+				<div id = 'coin'>coin</div>			
+				<div id = 'lives'>lives</div>
+				<div id = 'wave'>wave</div>
+			</div>
+			<p id = 'auto_start'>Auto start?<br><input type = 'checkbox' id = 'autoStart'></p>
+			<p id = 'toggle_music'>Music On/Off</p>
+		</div>
+		<canvas id ='td_canvas'></canvas>
+		<div style='clear:both;'></div>
+		<div id = 'updateMenu' class = 'hide'>
+			<ul id = 'targitingScheme' class = 'menu-item'>
+				<li id = 'first' mode = 'first' class='selected'>First</li>
+				<li id = 'last' mode = 'last'>Last</li>
+				<li id = 'strong' mode = 'strong'>Strongest</li>
+				<li id = 'weak' mode = 'weak'>Weakest</li>
+			</ul>
+			<div id = 'update' class = 'menu-item'>
+				<p id = 'message'></p>
+				<p id = 'buy'>Upgrade</p>
+			</div>
+		<div style='clear:both;'></div>			
+		</div>
+	</div>	
+	<script>initGame();</script>
+</body></html>
