@@ -34,11 +34,12 @@ var useQuadTree = false;
 //Game arrays
 var pathCoords = [[60,0],[60,200],[250,200],[250,100],[450,100],[450,300],[100,300],[100,450],[540,450],[540,600]];	//2d array with x,y coordinates of the way points.
 var spriteWaves = [
-[{'num': 5, 'color': 'red', 'speed': 60, 'length': 5,'shape': 'circle', 'hp': 40}],
-[{'num': 2, 'color': '#E512ED', 'speed': 40, 'length': 9,'shape': 'circle', 'hp': 150}, {'num': 5, 'color': '#340B9C', 'speed': 80, 'length': 4,'shape': 'circle', 'hp': 20}],
-[{'num': 10, 'color': '#00FF3C', 'speed': 50, 'length': 5,'shape': 'circle', 'hp': 35}],
-[{'num': 8, 'color': '#00FCFF', 'speed': 40, 'length': 5,'shape': 'circle', 'hp': 40}],
-[{'num': 1, 'color': '#FFAE0E', 'speed': 20, 'length': 12,'shape': 'circle', 'hp': 300}]
+[{'num': 5, 'color': 'red', 'speed': 60, 'length': 5,'shape': 'square', 'hp': 40, 'coin': 7}],
+[{'num': 4, 'color': 'blue', 'speed': 90, 'length': 8,'shape': 'hex', 'hp': 40, 'coin': 7}],
+[{'num': 2, 'color': '#E512ED', 'speed': 40, 'length': 9,'shape': 'dia', 'hp': 150, 'coin': 7}, {'num': 5, 'color': '#340B9C', 'speed': 80, 'length': 6,'shape': 'triangle', 'hp': 20, 'coin': 7}],
+[{'num': 10, 'color': '#00FF3C', 'speed': 50, 'length': 7,'shape': 'pent', 'hp': 35, 'coin': 7}],
+[{'num': 8, 'color': '#00FCFF', 'speed': 40, 'length': 5,'shape': 'circle', 'hp': 40, 'coin': 7}],
+[{'num': 1, 'color': '#FFAE0E', 'speed': 35, 'length': 12,'shape': 'circle', 'hp': 500, 'coin': 30}, {'num': 7, 'color': '#340B9C', 'speed': 80, 'length': 8,'shape': 'triangle', 'hp': 30, 'coin': 7}]
 ];
 
 function coor(x, y){
@@ -56,7 +57,7 @@ function Sprite(hp, speed, color, coin, raidus, shape){
 	this.speed = speed;
 	this.color = color;
 	this.coin = coin;
-	this.shape = shape;
+	this.shape = shape || 'circle';
 	this.raidus = raidus || 5;
 	this.currentLocation = new coor(spritePath[0].x, spritePath[0].y-20);
 	this.indexStop = 1; 
@@ -101,18 +102,59 @@ Sprite.prototype = {
 		ctx.lineWidth = 1.5;
 //		ctx.moveTo(this.currentLocation.x-gridDem, this.currentLocation.y-gridDem);
 //		ctx.lineTo((this.currentLocation.x-gridDem)+(gridDem*2)*(this.hpLeft/this.hp), this.currentLocation.y-gridDem);
-		
-		ctx.moveTo(this.currentLocation.x-10, this.currentLocation.y-this.raidus - 5);
-		ctx.lineTo((this.currentLocation.x-10)+20*(this.hpLeft/this.hp), this.currentLocation.y-this.raidus - 5);
+		y = this.currentLocation.y-this.raidus - 5;
+		ctx.moveTo(this.currentLocation.x-10, y);
+		ctx.lineTo((this.currentLocation.x-10)+20*(this.hpLeft/this.hp), y);
 		ctx.strokeStyle = 'red';
 		ctx.stroke();
 //		Draw sprite			
 		ctx.beginPath();
-		ctx.arc(this.currentLocation.x, this.currentLocation.y, this.raidus, 0, 2 * Math.PI);
-		ctx.fillStyle = ((this.inRange) ? this.rangeColor : this.color);
 		ctx.strokeStyle = this.color;
+		ctx.fillStyle = ((this.inRange) ? this.rangeColor : this.color);
+		ctx.lineWidth = 0;
+		
+//		Switch statement to determine which drawing algorithm to use for the sprite.  Will add in other shapes later.		
+		switch (this.shape){
+			case 'circle':
+				ctx.arc(this.currentLocation.x, this.currentLocation.y, this.raidus, 0, 2 * Math.PI);
+				break;
+			case 'triangle':
+				ctx.moveTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				break;
+			case 'square':
+				ctx.rect(this.currentLocation.x - this.raidus, this.currentLocation.y - this.raidus, this.raidus*2, this.raidus*2);
+				break;
+			case 'dia':
+				ctx.moveTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				break;
+			case 'hex':
+				ctx.moveTo(this.currentLocation.x + this.raidus, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x + this.raidus/2, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus/2, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus-2, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x - this.raidus/2, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus/2, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus+2, this.currentLocation.y);
+				break;
+			case 'pent':
+				ctx.moveTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x + this.raidus/2, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus/2, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				
+				break;
+		}
 		ctx.fill();
-		ctx.stroke(); 
+//		ctx.stroke(); 
 	}
 
 }
@@ -182,8 +224,8 @@ Tower.prototype = {
 		ctx.lineWidth = .5;
 		ctx.rect(this.loc.x, this.loc.y, this.height * gridDem, this.width * gridDem);
 		ctx.strokeStyle = 'black';
-		tower = this;
-		ctx.rect(tower.loc.x-tower.range*gridDem + tower.width/2 * gridDem, tower.loc.y-tower.range*gridDem + tower.height/2 * gridDem, tower.range*2*gridDem, tower.range*2*gridDem);
+//		tower = this;
+//		ctx.rect(tower.loc.x-tower.range*gridDem + tower.width/2 * gridDem, tower.loc.y-tower.range*gridDem + tower.height/2 * gridDem, tower.range*2*gridDem, tower.range*2*gridDem);
 		ctx.stroke();
 		
 		//Move to center to draw turret 
@@ -236,7 +278,7 @@ Tower.prototype = {
 	attackSprite: function(){
 		var distance = distancePoints(this.center.x, this.center.y, this.target.currentLocation.x, this.target.currentLocation.y);
 		if (this.target.hpLeft > 0 && distance <= this.range * gridDem){
-			var bullet = new Bullet(300, this.turretEnd, this.target.currentLocation, '#fff', this.target, Math.random() * (this.power - this.power*.75) + this.power*.75);
+			var bullet = new Bullet(350, this.turretEnd, this.target.currentLocation, '#fff', this.target, Math.random() * (this.power - this.power*.75) + this.power*.75);
 			bulletArr.push(bullet);
 			this.lastshot = Date.now();
 		}else{
@@ -250,21 +292,21 @@ Tower.prototype = {
 *	Takes an xy coordinate pair and returns true or false based on whether the coordinates are located within its bounds.
 */	
 	isInside: function(pos){
-		return this.loc.x <= pos.x && pos.x <= this.loc.x+this.width*gridDem && this.loc.y <= pos.y && pos.y <= this.loc.y+this.height*gridDem;
+		return this.loc.x < pos.x && pos.x < this.loc.x+this.width*gridDem && this.loc.y < pos.y && pos.y < this.loc.y+this.height*gridDem;
 	},
 	
 /*
 *	Returns the upgrade information for the tower.
 */	
 	getUpgradeInfo: function(){
-		return 'Level: '+this.level+ ' Upgrade Cost: ' + Math.round((this.level * this.upgradeCostPercent) * this.cost) + ' Power: ' + Math.round(this.upgradePowerPercent * this.power);
+		return 'Level: '+this.level+ ' Upgrade Cost: ' + Math.round((Math.pow(this.level, 2) * this.upgradeCostPercent) * this.cost) + ' Power: ' + Math.round(this.upgradePowerPercent * this.power);
 	},
 
 /*
 *	Returns the upgrade cost for the tower.
 */		
 	getUpgradeCost: function(){
-		return Math.round((this.level * this.upgradeCostPercent) * this.cost);
+		return Math.round((Math.pow(this.level, 2) * this.upgradeCostPercent) * this.cost);
 	},
 	
 /*
@@ -343,8 +385,9 @@ Tower.prototype = {
 /*
 *	Function canAttack 	- 
 */
-	canAttack: function(){
-		return this.lastshot < (Date.now() - this.shotRate);
+	canAttack: function(sprite){
+		return this.lastshot < (Date.now() - this.shotRate) &&
+		distancePoints(this.center.x, this.center.y, sprite.currentLocation.x, sprite.currentLocation.y) <= this.range * gridDem - sprite.raidus;
 	}
 }
 
@@ -594,7 +637,7 @@ function createTower(){
 }
 
 /*
-*	Function addTowerButton - Function to add buttons for the differnt possible towers
+*	Function addTowerButton - Function to add buttons for the different possible towers
 *	@param display	- The text to be displayed on the button
 *	@param h 		- Height of the tower
 *	@param w 		- Width of the tower
@@ -640,7 +683,7 @@ function makeMatches(){
 //				console.log(returnedObjects);
 				returnObjects.forEach(function(sprite){
 					sprite.inRange = true;
-					if (distancePoints(tower.center.x, tower.center.y, sprite.currentLocation.x, sprite.currentLocation.y) <= tower.range * gridDem && tower.canAttack()){
+					if (tower.canAttack(sprite)){
 						tower.spriteChooseMethod(sprite);
 						bool = true;
 					}
@@ -648,7 +691,7 @@ function makeMatches(){
 			}else{
 				spriteArr.forEach(function(sprite){
 //					Sprite is in range of the tower and it has gone through its reload period
-					if (distancePoints(tower.center.x, tower.center.y, sprite.currentLocation.x, sprite.currentLocation.y) <= tower.range * gridDem && tower.canAttack()){
+					if (tower.canAttack(sprite)){
 						tower.spriteChooseMethod(sprite);
 						bool = true;
 					}
@@ -662,18 +705,16 @@ function makeMatches(){
 function getSprites(){
 	var length = spriteWaves.length;
 	spriteWaves[waveIndex%length].forEach(function(ele){
-		for(i = 0; i < ele['num']; i++)
-			spriteArr.push(new Sprite(ele['hp'], ele['speed'] + getRandom(-3, 3), ele['color'], 7, ele['length']));
+		for(i = 0; i < ele['num'] * Math.max(1, Math.round(Math.floor(waveIndex/length) / 2)); i++)
+			spriteArr.push(new Sprite(ele['hp']*Math.max(1,Math.floor(waveIndex/length)), ele['speed'], ele['color'], ele['coin'], ele['length'], ele['shape']));
 	});
-/*	var length = 5;
-	var worth = Math.max(1, 8 - Math.floor(waveIndex/length));
-	for (i = -1; i < Math.floor(waveIndex/length); i++){		
-		spriteArr.push(new Sprite(65+waveIndex*2, 70+getRandom(-2,2), 'yellow', worth, 5));
-		spriteArr.push(new Sprite(60+waveIndex*2, 55+getRandom(-2,2), 'green', worth, 7));
-		spriteArr.push(new Sprite(200+waveIndex*2, 40+getRandom(-2,2), 'blue', worth, 6));
-		spriteArr.push(new Sprite(220+waveIndex*2, 35+getRandom(-2,2), 'red', worth, 10));
-	}
-*/}
+
+	spriteArr.forEach(function(ele, i){
+		ele.currentLocation.y -= 10*i;
+	});
+	
+	spriteArr.reverse();
+}
 
 function addSpritesToQ(){
 	spriteArr.forEach(function(ele){
@@ -681,27 +722,6 @@ function addSpritesToQ(){
 	});
 }
 
-function newGame(){
-	towerArr = [];
-	spriteArr = [];
-	bulletArr = [];
-	waveIndex = 0;
-	money = 500;
-	lives = 20;
-	gameMessages.innerHTML = '';
-	displayMenuVars();
-	getSprites();
-	drawStaticBoard();
-	canPlaceTower = true;
-	gridUsed = [];
-	for (var i = 0; i < boardDem/gridDem; i++){
-		var tempArr = [];
-		for (var r = 0; r < boardDem/gridDem; r++){
-			tempArr.push(false);
-		}
-		gridUsed.push(tempArr);
-	}
-}
 /*
 *	Function draw - The basic sprite drawing function will call each objects draw method will also delete sprites that have made it to the end.
 */
@@ -752,7 +772,7 @@ function draw(){
 	}
 	if(lives <= 0){
 		gameMessages.innerHTML = "You have lost!<br>New Game starting in 10 seconds.";
-		setTimeout(newGame, 10000);		
+		setTimeout(function(){	document.location.reload();	}, 10000);		
 	}else if (spriteArr.length === 0){
 		canPlaceTower = true;
 		bulletArr = [];		//Delete all remaining bullets from last round
@@ -942,12 +962,11 @@ window.onblur = function () {
 	
 	
 //	Add tower buttons
-	addTowerButton('Tower 1', 3, 3, 15, 10, 65, 225, 'blue');
+	addTowerButton('Tower 1', 3, 3, 25, 10, 65, 225, 'blue');
 	addTowerButton('Tower 2', 2, 2, 90, 7, 10, 75, '#B30BC6');
 	
 	//	Add button for starting next waves
 	button = document.createElement('p'); 
-//	button.innerHTML = 'Start Wave';
 	img = document.createElement('img');
 	button.setAttribute('class', 'startButton');
 	img.src = 'play.png';
