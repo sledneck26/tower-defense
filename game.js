@@ -1,6 +1,8 @@
 var boardDem = window.innerHeight - 30;	//Dimensions of the game board
 boardDem = 600;
-var gridDem = 10;						//Dimensions of the grid that will cover the board.
+var gridDem = 1;						//Dimensions of the grid that will cover the board.
+var gridSnap = 10;						//The snap to grid dimensions for placing towers.  
+var pathPadding = 20;					//Padding on the path for path draw
 var frameRate = 1000 / 30;				//Frames to be displayed per second
 var rAF = window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.requestAnimationFrame;
 var spritePath = [];					//The path that the sprites will follow
@@ -11,7 +13,6 @@ var gridUsed = [];						//Two dimensional array holding a true/false value for e
 var pathColor = '#614406';				//Color of the path
 var backgroundColor = 'green';			//Color of the background
 var gridColor = 'black';				//Color of the grid
-var pathPadding = 2;					//Padding on the path for path draw
 var lives = 20;							//Lives left before game over
 var money = 500;						//The money that you have to buy towers with
 var waveIndex = 0;						//The current wave
@@ -24,9 +25,10 @@ end, 									//Coordinate pair for the ending point for the sprites
 tempTower,								//Hold tower object until it can be confirmed into the tower list
 button,									//Start wave button object
 pathBackground,							//Holds image data for the whole background
-q,										//Holder for q-tree object
 selectedTower = false,					//Place holder for the last tower selected
 updateMenu,								//Div used for the upgrading of towers.
+img,									//Src for the play / pause button
+pauseTime = 0,								//The time when the pause button has been hit first
 gameControls;							//Div element for buttons and other game control elements
 
 var useQuadTree = false;
@@ -34,12 +36,14 @@ var useQuadTree = false;
 //Game arrays
 var pathCoords = [[60,0],[60,200],[250,200],[250,100],[450,100],[450,300],[100,300],[100,450],[540,450],[540,600]];	//2d array with x,y coordinates of the way points.
 var spriteWaves = [
-[{'num': 5, 'color': 'red', 'speed': 60, 'length': 5,'shape': 'square', 'hp': 40, 'coin': 7}],
+[{'num': 5, 'color': 'red', 'speed': 60, 'length': 8,'shape': 'star', 'hp': 40, 'coin': 7}],
+[{'num': 3, 'color': '#FFA600', 'speed': 60, 'length': 9, 'shape': 'plus', 'hp': 90, 'coin': 40}],
 [{'num': 4, 'color': 'blue', 'speed': 90, 'length': 8,'shape': 'hex', 'hp': 40, 'coin': 7}],
-[{'num': 2, 'color': '#E512ED', 'speed': 40, 'length': 9,'shape': 'dia', 'hp': 150, 'coin': 7}, {'num': 5, 'color': '#340B9C', 'speed': 80, 'length': 6,'shape': 'triangle', 'hp': 20, 'coin': 7}],
+[{'num': 2, 'color': '#E512ED', 'speed': 40, 'length': 9,'shape': 'dia', 'hp': 150, 'coin': 11}, {'num': 5, 'color': '#340B9C', 'speed': 80, 'length': 6,'shape': 'triangle', 'hp': 20, 'coin': 7}],
 [{'num': 10, 'color': '#00FF3C', 'speed': 50, 'length': 7,'shape': 'pent', 'hp': 35, 'coin': 7}],
-[{'num': 8, 'color': '#00FCFF', 'speed': 40, 'length': 5,'shape': 'circle', 'hp': 40, 'coin': 7}],
-[{'num': 1, 'color': '#FFAE0E', 'speed': 35, 'length': 12,'shape': 'circle', 'hp': 500, 'coin': 30}, {'num': 7, 'color': '#340B9C', 'speed': 80, 'length': 8,'shape': 'triangle', 'hp': 30, 'coin': 7}]
+[{'num': 8, 'color': '#00FCFF', 'speed': 40, 'length': 5,'shape': 'square', 'hp': 40, 'coin': 7}],
+[{'num': 1, 'color': '#FFAE0E', 'speed': 35, 'length': 12,'shape': 'duck', 'hp': 500, 'coin': 30}, {'num': 7, 'color': '#340B9C', 'speed': 80, 'length': 8,'shape': 'hourglass', 'hp': 30, 'coin': 7}],
+[{'num': 20, 'color': '#36F506', 'speed': 60, 'length': 7,'shape': 'octStar', 'hp': 10, 'coin': 3}]
 ];
 
 function coor(x, y){
@@ -100,8 +104,6 @@ Sprite.prototype = {
 //		Draw health
 		ctx.beginPath();
 		ctx.lineWidth = 1.5;
-//		ctx.moveTo(this.currentLocation.x-gridDem, this.currentLocation.y-gridDem);
-//		ctx.lineTo((this.currentLocation.x-gridDem)+(gridDem*2)*(this.hpLeft/this.hp), this.currentLocation.y-gridDem);
 		y = this.currentLocation.y-this.raidus - 5;
 		ctx.moveTo(this.currentLocation.x-10, y);
 		ctx.lineTo((this.currentLocation.x-10)+20*(this.hpLeft/this.hp), y);
@@ -112,7 +114,8 @@ Sprite.prototype = {
 		ctx.strokeStyle = this.color;
 		ctx.fillStyle = ((this.inRange) ? this.rangeColor : this.color);
 		ctx.lineWidth = 0;
-		
+		var x = this.currentLocation.x;
+		var y = this.currentLocation.y;
 //		Switch statement to determine which drawing algorithm to use for the sprite.  Will add in other shapes later.		
 		switch (this.shape){
 			case 'circle':
@@ -150,13 +153,72 @@ Sprite.prototype = {
 				ctx.lineTo(this.currentLocation.x - this.raidus/2, this.currentLocation.y + this.raidus);
 				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y);
 				ctx.lineTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				break;
+			case 'octStar':
+				ctx.fillRect(this.currentLocation.x - this.raidus, this.currentLocation.y - this.raidus, this.raidus*2, this.raidus*2);
+				ctx.moveTo(this.currentLocation.x, this.currentLocation.y - (this.raidus * 1.41));
+				ctx.lineTo(this.currentLocation.x + (this.raidus * 1.41), this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y + (this.raidus * 1.41));
+				ctx.lineTo(this.currentLocation.x - (this.raidus * 1.41), this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y - (this.raidus * 1.41));
+				break;
+			case 'duck':
+				ctx.moveTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus/2, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x + this.raidus, this.currentLocation.y);
 				
+				ctx.lineTo(this.currentLocation.x + this.raidus/2, this.currentLocation.y + this.raidus);
+				
+				ctx.lineTo(this.currentLocation.x - this.raidus/4, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus/2, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y);
+				
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				break;
+			case 'hourglass':
+				ctx.moveTo(this.currentLocation.x - this.raidus, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y - this.raidus);
+				break;
+			case 'star':
+				ctx.moveTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				ctx.lineTo(this.currentLocation.x + this.raidus/2, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x - this.raidus, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x + this.raidus, this.currentLocation.y);
+				ctx.lineTo(this.currentLocation.x - this.raidus/2, this.currentLocation.y + this.raidus);
+				ctx.lineTo(this.currentLocation.x, this.currentLocation.y - this.raidus);
+				break;
+			case 'plus':
+				sixth = this.raidus/3;
+				ctx.moveTo(x - sixth, y - this.raidus);
+				ctx.lineTo(x + sixth, y - this.raidus);
+				ctx.lineTo(x + sixth, y - sixth);
+				ctx.lineTo(x + this.raidus, y - sixth);
+				ctx.lineTo(x + this.raidus, y + sixth);
+				ctx.lineTo(x + sixth, y + sixth);
+				ctx.lineTo(x + sixth, y + this.raidus);
+				ctx.lineTo(x - sixth, y + this.raidus);
+				ctx.lineTo(x - sixth, y + sixth);
+				ctx.lineTo(x - this.raidus, y + sixth);
+				ctx.lineTo(x - this.raidus, y - sixth);
+				ctx.lineTo(x - sixth, y - sixth);
+				ctx.lineTo(x - sixth, y - this.raidus);
 				break;
 		}
 		ctx.fill();
-//		ctx.stroke(); 
-	}
+	},
 
+/*	
+*	isInside 
+*	@param loc	- The cell to be tested if its inside the current sprite
+*	Return 		- True if loc is inside the radius of the sprite, False otherwise
+*/
+	isInside: function(loc){
+		if (distancePoints(loc.x, loc.y, this.currentLocation.x, this.currentLocation.y) <= this.raidus)	return true;
+		else return false;
+	}
 }
 	
 //Allows the sprites to not walk directly to the next point but to take a slightly different path.
@@ -224,8 +286,6 @@ Tower.prototype = {
 		ctx.lineWidth = .5;
 		ctx.rect(this.loc.x, this.loc.y, this.height * gridDem, this.width * gridDem);
 		ctx.strokeStyle = 'black';
-//		tower = this;
-//		ctx.rect(tower.loc.x-tower.range*gridDem + tower.width/2 * gridDem, tower.loc.y-tower.range*gridDem + tower.height/2 * gridDem, tower.range*2*gridDem, tower.range*2*gridDem);
 		ctx.stroke();
 		
 		//Move to center to draw turret 
@@ -276,8 +336,7 @@ Tower.prototype = {
 *	function expects targeted sprite to have hit points available upon calling.
 */	
 	attackSprite: function(){
-		var distance = distancePoints(this.center.x, this.center.y, this.target.currentLocation.x, this.target.currentLocation.y);
-		if (this.target.hpLeft > 0 && distance <= this.range * gridDem){
+		if (this.target.hpLeft > 0 && this.canAttack(this.target)){
 			var bullet = new Bullet(350, this.turretEnd, this.target.currentLocation, '#fff', this.target, Math.random() * (this.power - this.power*.75) + this.power*.75);
 			bulletArr.push(bullet);
 			this.lastshot = Date.now();
@@ -387,7 +446,7 @@ Tower.prototype = {
 */
 	canAttack: function(sprite){
 		return this.lastshot < (Date.now() - this.shotRate) &&
-		distancePoints(this.center.x, this.center.y, sprite.currentLocation.x, sprite.currentLocation.y) <= this.range * gridDem - sprite.raidus;
+		distancePoints(this.center.x, this.center.y, sprite.currentLocation.x, sprite.currentLocation.y) <= this.range * gridDem + sprite.raidus;
 	}
 }
 
@@ -422,7 +481,7 @@ Bullet.prototype = {
 		this.traveled += distancePoints(this.loc.x, this.loc.y, something.x, something.y);
 		
 		//If bullet has not made the end yet
-		if (this.traveled < this.shotLength){	return false;	}	
+		if (this.traveled < this.shotLength && !this.target.isInside(this.loc)){	return false;	}	
 		//Subtract hit from target and return true
 		else{	
 			this.target.hpLeft -= this.strength;
@@ -472,8 +531,8 @@ function canvasPlaceTower(evt) {
 	var mousePos = getMousePos(gCanvas, evt);
 	tempTower.cClear();
 	//Calculate the x and y position of the tower
-	var x = (Math.round((mousePos.x - tempTower.width / 2) / 10) * 10) - (gridDem*(tempTower.width - tempTower.width % 2)) / 2;
-	var y = (Math.round((mousePos.y - tempTower.height / 2) / 10) * 10) - (gridDem*(tempTower.height - tempTower.height % 2)) / 2;
+	var x = Math.round((mousePos.x - tempTower.width/ 2) / gridSnap) * gridSnap;
+	var y = Math.round((mousePos.y - tempTower.height/2) / gridSnap) * gridSnap;
 	tempTower.loc = new coor(x, y);
 	tempTower.cDraw();
 }
@@ -523,6 +582,7 @@ function changeTargetingMode(){
 *	Function canvasClick - Helper function for canvas click event while towers are ready to be placed
 */
 function canvasClick(evt){
+	//If no tower is in the process of being placed.  then check to see if you are clicking within a tower that has been place previously.  
 	if(!tempTower){
 		var mousePos = getMousePos(gCanvas, evt);
 		var updateBool = true;
@@ -593,7 +653,6 @@ function checkVaild(){
 *	Function removeCanvasListeners - Removes all the listeners for placing a tower.
 */
 function removeCanvasListeners(){
-//	gCanvas.removeEventListener('click', canvasClick);
 	gCanvas.removeEventListener('mouseout', mouseOutOfBounds);
 	gCanvas.removeEventListener('mousemove', canvasPlaceTower);
 }
@@ -620,15 +679,12 @@ function createTower(){
 		drawStaticBoard();
 	}
 //	Message if the current wave is active	
-	if (!canPlaceTower){
-		gameMessages.innerHTML = 'You can\'t place towers now';
-		setTimeout(function(){	gameMessages.innerHTML = '';	}, 3000);
-//	Message if you don't have enough money
-	}else if (Number(this.getAttribute('cost')) > money){
+	if (Number(this.getAttribute('cost')) > money){
 		gameMessages.innerHTML = 'You don\'t have enough money';
 		setTimeout(function(){	gameMessages.innerHTML = '';	}, 3000);
 //	Otherwise allow tower to be placed.
 	}else{
+		pause();
 		tempTower = new Tower(Number(this.getAttribute('height')), Number(this.getAttribute('width')), new coor(-1000,-1000), Number(this.getAttribute('shotRate')), Number(this.getAttribute('range')), Number(this.getAttribute('power')), Number(this.getAttribute('cost')), this.getAttribute('color'));
 		//Add all the event listeners for placing towers
 		gCanvas.addEventListener('mouseout', mouseOutOfBounds, false);
@@ -645,6 +701,7 @@ function createTower(){
 *	@param r 		- Range of the tower
 *	@param p 		- Power of the towers attack
 *	@param c		- Cost of the tower
+*	@param cl		- Color of the tower
 */
 function addTowerButton(display, h, w, sR, r, p, c, cl){
 	var newButton = document.createElement('p');
@@ -678,65 +735,65 @@ function makeMatches(){
 		towerArr.forEach(function(tower){
 //			Get sprites in the towers quad
 			bool = false;
-			if (useQuadTree){
-				returnObjects = q.retrieve({x:tower.loc.x-tower.range*gridDem + tower.width/2 * gridDem, y:tower.loc.y-tower.range*gridDem + tower.height/2 * gridDem, w:tower.range*2*gridDem,h:tower.range*2*gridDem});
-//				console.log(returnedObjects);
-				returnObjects.forEach(function(sprite){
-					sprite.inRange = true;
-					if (tower.canAttack(sprite)){
-						tower.spriteChooseMethod(sprite);
-						bool = true;
-					}
-				});
-			}else{
-				spriteArr.forEach(function(sprite){
-//					Sprite is in range of the tower and it has gone through its reload period
-					if (tower.canAttack(sprite)){
-						tower.spriteChooseMethod(sprite);
-						bool = true;
-					}
-				});
-			}
+			spriteArr.forEach(function(sprite){
+//				Sprite is in range of the tower and it has gone through its reload period
+				if (tower.canAttack(sprite)){
+					tower.spriteChooseMethod(sprite);
+					bool = true;
+				}
+			});
+//			if a target has been assigned then attack it			
 			if (bool) tower.attackSprite();
 		});
 	}
 } 
 
+/*
+*	getSprites - Looks up based on the wave index which wave should be added to the game.  
+*/
 function getSprites(){
 	var length = spriteWaves.length;
 	spriteWaves[waveIndex%length].forEach(function(ele){
 		for(i = 0; i < ele['num'] * Math.max(1, Math.round(Math.floor(waveIndex/length) / 2)); i++)
 			spriteArr.push(new Sprite(ele['hp']*Math.max(1,Math.floor(waveIndex/length)), ele['speed'], ele['color'], ele['coin'], ele['length'], ele['shape']));
 	});
-
+	
+	//Space the sprites out based on their raidus
 	spriteArr.forEach(function(ele, i){
-		ele.currentLocation.y -= 10*i;
+		ele.currentLocation.y -= (ele.raidus*2)*i;
 	});
 	
 	spriteArr.reverse();
 }
 
-function addSpritesToQ(){
-	spriteArr.forEach(function(ele){
-		q.insert(ele);
+function play(){
+	img.src = 'pause.jpg';
+	canPlaceTower = false;
+	
+	//Adjust the amount last shot time to compensate for the time that has passed while paused.
+	var adj = Date.now() - pauseTime;
+	towerArr.forEach(function(ele){
+		ele.lastshot += adj;
 	});
+	button.removeEventListener('click', play);
+	button.addEventListener('click', pause, false);
+	removeCanvasListeners();
+	draw();
 }
 
+function pause(){
+	img.src = 'play.png';
+	canPlaceTower = true;
+	button.addEventListener('click', play, false);
+	button.removeEventListener('click', pause);
+	pauseTime = Date.now();
+}
 /*
 *	Function draw - The basic sprite drawing function will call each objects draw method will also delete sprites that have made it to the end.
 */
 function draw(){
-	button.removeEventListener('click', draw);
-	removeCanvasListeners();
 	displayMenuVars();
 	ctx.putImageData(pathBackground,0,0);
-	canPlaceTower = false;
-
-	if (useQuadTree){
-		q.clear();
-//		Add sprites to the q-tree	
-		addSpritesToQ();
-	}
 	
 //	Call the make matches function	
 	makeMatches();
@@ -756,8 +813,6 @@ function draw(){
 		}
 	}
 
-	
-
 //	Draw the towers
 	towerArr.forEach(function(ele){
 		ele.draw();
@@ -770,25 +825,26 @@ function draw(){
 		else
 			bulletArr[i].draw();
 	}
+//	No lives are left Game Over	
 	if(lives <= 0){
 		gameMessages.innerHTML = "You have lost!<br>New Game starting in 10 seconds.";
 		setTimeout(function(){	document.location.reload();	}, 10000);		
 	}else if (spriteArr.length === 0){
 		canPlaceTower = true;
 		bulletArr = [];		//Delete all remaining bullets from last round
-		button.addEventListener('click', draw, false);
 		displayMenuVars();
 		waveIndex++;
 		getSprites(); 
 		drawStaticBoard();
-
+		pause();
 //		If the auto start wave box is checked then start wave as soon as last one finishes.
 		if (document.getElementById('autoStart').checked){
-			draw();
+			play();
 		}
 		
 	}else{
-		setTimeout(draw, frameRate);
+		if(!canPlaceTower)
+			setTimeout(draw, frameRate);
 	}
 }
 
@@ -829,7 +885,7 @@ function drawStaticBoard(){
 		}
 		ctx.stroke();
 	}
-	
+
 	//	Draw path for strictly vertical and horizontal path	
 	for (var i = 0; i < spritePath.length-1; i++){
 		var node1 = spritePath[i];
@@ -846,6 +902,7 @@ function drawStaticBoard(){
 			ctx.fillRect(Math.min(node1.x, node2.x), node1.y-gridDem*pathPadding, Math.abs(node1.x - node2.x), gridDem * (pathPadding*2));
 		}
 	}
+
 	
 //	pathBackground = ctx.getImageData(0,0,boardDem,boardDem);
 //	Draw the towers
@@ -853,6 +910,7 @@ function drawStaticBoard(){
 		ele.draw();
 	});
 }
+
 
 /*
 *	Function initGame - Sets up the canvas for the game to be displayed on. 
@@ -870,11 +928,6 @@ function initGame(){
 	ctx = gCanvas.getContext("2d");
 	back = ctx.getImageData(0,0,1,1);	
 
-	if (useQuadTree){
-		q = new _quadtree(gCanvas.width,gCanvas.height);
-		addSpritesToQ();
-	}
-	
 	gCanvas.addEventListener('click', canvasClick, false);		
 	gCanvas.addEventListener('contextmenu', canvasRightClick, false);
 	
@@ -900,22 +953,14 @@ function initGame(){
 		}
 		gridUsed.push(tempArr);
 	}
-	
-	
 
-/*
-Keep for later development on when the window is active and when its not.
+	window.onfocus = function () { 
+		if (!canPlaceTower)	play();
+	}; 
 
-window.onfocus = function () { 
-  isActive = true; 
-}; 
-
-window.onblur = function () { 
-  isActive = false; 
-}; 
-*/
-
-
+	window.onblur = function () {
+		if (!canPlaceTower)	pause();
+	}; 
 
 //	Get the path waypoints 
 	pathFactory(pathCoords);
@@ -956,14 +1001,11 @@ window.onblur = function () {
 	
 //	Get the first wave of sprites ready for the game
 	getSprites();
-
-//	Add sprites to the q-tree	
-//	addSpritesToQ();
-	
 	
 //	Add tower buttons
-	addTowerButton('Tower 1', 3, 3, 25, 10, 65, 225, 'blue');
-	addTowerButton('Tower 2', 2, 2, 90, 7, 10, 75, '#B30BC6');
+	addTowerButton('Tower 1', 30, 30, 25, 100, 65, 225, 'blue');
+	addTowerButton('Tower 2', 20, 20, 90, 70, 10, 75, '#B30BC6');
+	addTowerButton('Tower 3', 40, 40, 80, 120, 80, 675, '#1DFA28');
 	
 	//	Add button for starting next waves
 	button = document.createElement('p'); 
@@ -972,6 +1014,6 @@ window.onblur = function () {
 	img.src = 'play.png';
 	img.id = 'start_button';
 	button.appendChild(img);
-	button.addEventListener('click', draw, false);
+	button.addEventListener('click', play, false);
 	gameControls.appendChild(button);
 }
