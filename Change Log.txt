@@ -1,0 +1,11 @@
+Uploaded 4/28/15
+
+Bug fixes
+	- Flickering sprites as others are deleted
+	- Tower select not working if you were attempting to place tower when the play button was pressed
+	- 'Disappearing' sprites when towers selected while game was paused
+	- Upgrade menu not hiding when placing new towers while existing tower is selected
+
+Upgrades
+	- Towers become more expensive as waves continue
+	- Towers recoil when a shot is fired

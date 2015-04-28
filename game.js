@@ -1,5 +1,6 @@
 var boardDem = window.innerHeight - 30;	//Dimensions of the game board
-boardDem = 600;
+var boardDemH = 600;
+var boardDemW = 600;
 var gridDem = 1;						//Dimensions of the grid that will cover the board.
 var gridSnap = 10;						//The snap to grid dimensions for placing towers.  
 var pathPadding = 20;					//Padding on the path for path draw
@@ -36,14 +37,14 @@ var useQuadTree = false;
 //Game arrays
 var pathCoords = [[60,0],[60,200],[250,200],[250,100],[450,100],[450,300],[100,300],[100,450],[540,450],[540,600]];	//2d array with x,y coordinates of the way points.
 var spriteWaves = [
-[{'num': 5, 'color': 'red', 'speed': 60, 'length': 8,'shape': 'star', 'hp': 40, 'coin': 7}],
+[{'num': 5, 'color': 'red', 'speed': 60, 'length': 12,'shape': 'star', 'hp': 40, 'coin': 7}],
 [{'num': 3, 'color': '#FFA600', 'speed': 60, 'length': 9, 'shape': 'plus', 'hp': 90, 'coin': 40}],
 [{'num': 4, 'color': 'blue', 'speed': 90, 'length': 8,'shape': 'hex', 'hp': 40, 'coin': 7}],
 [{'num': 2, 'color': '#E512ED', 'speed': 40, 'length': 9,'shape': 'dia', 'hp': 150, 'coin': 11}, {'num': 5, 'color': '#340B9C', 'speed': 80, 'length': 6,'shape': 'triangle', 'hp': 20, 'coin': 7}],
 [{'num': 10, 'color': '#00FF3C', 'speed': 50, 'length': 7,'shape': 'pent', 'hp': 35, 'coin': 7}],
-[{'num': 8, 'color': '#00FCFF', 'speed': 40, 'length': 5,'shape': 'square', 'hp': 40, 'coin': 7}],
+[{'num': 8, 'color': '#00FCFF', 'speed': 40, 'length': 9,'shape': 'square', 'hp': 40, 'coin': 7}],
 [{'num': 1, 'color': '#FFAE0E', 'speed': 35, 'length': 12,'shape': 'duck', 'hp': 500, 'coin': 30}, {'num': 7, 'color': '#340B9C', 'speed': 80, 'length': 8,'shape': 'hourglass', 'hp': 30, 'coin': 7}],
-[{'num': 20, 'color': '#36F506', 'speed': 60, 'length': 7,'shape': 'octStar', 'hp': 10, 'coin': 3}]
+[{'num': 20, 'color': '#36F506', 'speed': 110, 'length': 7,'shape': 'octStar', 'hp': 10, 'coin': 3}]
 ];
 
 function coor(x, y){
@@ -69,8 +70,6 @@ function Sprite(hp, speed, color, coin, raidus, shape){
 	this.distanceToNextStop = distancePoints(this.currentLocation.x, this.currentLocation.y, this.nextStop.x, this.nextStop.y);
 	this.h = raidus;
 	this.w = raidus;
-	this.rangeColor = 'brown';
-	this.inRange = false;
 } 
 
 /*
@@ -111,8 +110,7 @@ Sprite.prototype = {
 		ctx.stroke();
 //		Draw sprite			
 		ctx.beginPath();
-		ctx.strokeStyle = this.color;
-		ctx.fillStyle = ((this.inRange) ? this.rangeColor : this.color);
+		ctx.fillStyle = this.color;
 		ctx.lineWidth = 0;
 		var x = this.currentLocation.x;
 		var y = this.currentLocation.y;
@@ -255,12 +253,12 @@ function Tower(height, width, loc, shotRate, range, power, cost, color){
 	this.targetingScheme = 'first';		//Allows the user to change the scheme with which the tower finds its target
 	this.color = color;
 	this.hasTarget = false;				//True if the tower has a sprite that is in range
-	this.target;						//Current target of the tower
+	this.target = spriteArr[0];			//Current target of the tower
 	this.turretEnd;						//A coor of the end of the turret
 	this.selected = true;				//True if the turret is selected false if it is not
 	this.paintX = this.loc.x;			//top left corner for space to copy when placing towers on the screen
 	this.paintY = this.loc.y;			//top left corner for space to copy when placing towers on the screen
-	this.turretLength = Math.min((height/2)*gridDem, (width/2)*gridDem);
+	this.turretLength = Math.min(height/2, width/2);	//Total length of the turret
 	this.center;						//Set center of the tower.
 	this.lastshot = 0;					//The system time stamp of the last shot made
 	this.upgradeCostPercent = .25;
@@ -287,12 +285,17 @@ Tower.prototype = {
 		ctx.rect(this.loc.x, this.loc.y, this.height * gridDem, this.width * gridDem);
 		ctx.strokeStyle = 'black';
 		ctx.stroke();
-		
+		//Calculate recoil
+		if (this.lastshot+this.shotRate/2 < Date.now())
+			tempLength = this.turretLength;
+		else
+			//Only recoil half the length of the turret
+			tempLength = this.turretLength/2 + (((Date.now()-this.lastshot)/this.shotRate) * this.turretLength/2)*2;
 		//Move to center to draw turret 
 		ctx.beginPath();
 		ctx.moveTo(this.center.x, this.center.y);
 		if (typeof this.target != 'undefined'){
-			this.turretEnd = coordinatesPoint(this.center.x, this.center.y, this.target.currentLocation.x, this.target.currentLocation.y, this.turretLength);
+			this.turretEnd = coordinatesPoint(this.center.x, this.center.y, this.target.currentLocation.x, this.target.currentLocation.y, tempLength);
 		}
 		ctx.lineWidth = 2.5;
 		ctx.lineTo(this.turretEnd.x, this.turretEnd.y);
@@ -337,11 +340,12 @@ Tower.prototype = {
 */	
 	attackSprite: function(){
 		if (this.target.hpLeft > 0 && this.canAttack(this.target)){
-			var bullet = new Bullet(350, this.turretEnd, this.target.currentLocation, '#fff', this.target, Math.random() * (this.power - this.power*.75) + this.power*.75);
+			this.turretEnd = coordinatesPoint(this.center.x, this.center.y, this.target.currentLocation.x, this.target.currentLocation.y, this.turretLength);
+			var bullet = new Bullet(400, this.turretEnd, this.target.currentLocation, '#fff', this.target, getRandom(this.power*.85, this.power+.1));
 			bulletArr.push(bullet);
 			this.lastshot = Date.now();
+			this.recoilFinish = this.lastshot + this.shotRate/2;
 		}else{
-			//Waits another firing rate till it allows the tower to be matched with a new target.
 			this.hasTarget = false;
 			delete this.target;
 		}
@@ -358,7 +362,7 @@ Tower.prototype = {
 *	Returns the upgrade information for the tower.
 */	
 	getUpgradeInfo: function(){
-		return 'Level: '+this.level+ ' Upgrade Cost: ' + Math.round((Math.pow(this.level, 2) * this.upgradeCostPercent) * this.cost) + ' Power: ' + Math.round(this.upgradePowerPercent * this.power);
+		return 'Level: '+this.level+ ' Upgrade Cost: ' + this.getUpgradeCost() + ' Power: ' + Math.round(this.upgradePowerPercent * this.power);
 	},
 
 /*
@@ -457,16 +461,14 @@ function Bullet(speed, start, end, color, target, strength){
 	this.color = color;			//Color of the bullet
 	this.strength = strength;	//Strength of the attack
 	this.target = target; 		//The target of the bullet
-	this.traveled = 0;			//distance the bullet has traveled.
+	this.traveled = 0;			//distance the bullet has travelled.
 	this.shotLength = distancePoints(this.loc.x, this.loc.y, this.end.x, this.end.y);			//Overall length of the shot
 	this.draw();
 }
 Bullet.prototype = {
 	
 	/*
-	*	Function draw -	Find mid point so that the clear box will be placed correctly
-	*					Get the background
-	*					Draw the bullet
+	*	Function draw -	Draw the bullet
 	*/
 	draw: function(){
 		ctx.beginPath();
@@ -677,6 +679,7 @@ function createTower(){
 	if (selectedTower){
 		selectedTower.selected = false;
 		drawStaticBoard();
+		updateMenu.className = 'hide';
 	}
 //	Message if the current wave is active	
 	if (Number(this.getAttribute('cost')) > money){
@@ -713,6 +716,7 @@ function addTowerButton(display, h, w, sR, r, p, c, cl){
 	newButton.setAttribute('range', r);
 	newButton.setAttribute('power', p);
 	newButton.setAttribute('cost', c);
+	newButton.setAttribute('oCost', c);
 	newButton.setAttribute('color', cl);
 	gameControls.appendChild(newButton);
 	newButton.addEventListener('click', createTower, false);
@@ -754,23 +758,19 @@ function makeMatches(){
 function getSprites(){
 	var length = spriteWaves.length;
 	spriteWaves[waveIndex%length].forEach(function(ele){
-		for(i = 0; i < ele['num'] * Math.max(1, Math.round(Math.floor(waveIndex/length) / 2)); i++)
+		for(i = 0; i < ele['num'] * Math.max(1, Math.round(Math.floor(waveIndex/length) / 2)); i++){
 			spriteArr.push(new Sprite(ele['hp']*Math.max(1,Math.floor(waveIndex/length)), ele['speed'], ele['color'], ele['coin'], ele['length'], ele['shape']));
+			spriteArr[spriteArr.length-1].currentLocation.y -= ele['length']*2*i;	//Stagger the sprites
+		}
 	});
-	
-	//Space the sprites out based on their raidus
-	spriteArr.forEach(function(ele, i){
-		ele.currentLocation.y -= (ele.raidus*2)*i;
-	});
-	
-	spriteArr.reverse();
 }
 
 function play(){
-	img.src = 'pause.jpg';
+	img.src = 'pause.png';
 	canPlaceTower = false;
+	tempTower = false;
 	
-	//Adjust the amount last shot time to compensate for the time that has passed while paused.
+	//Adjust the last shot time to compensate for the time that has passed while paused.
 	var adj = Date.now() - pauseTime;
 	towerArr.forEach(function(ele){
 		ele.lastshot += adj;
@@ -778,6 +778,11 @@ function play(){
 	button.removeEventListener('click', play);
 	button.addEventListener('click', pause, false);
 	removeCanvasListeners();
+	//Towers cost more as the waves increase (currently double every 25 waves)
+	lst = document.getElementsByClassName('towerOptions');
+	for (i = 0; i < lst.length; i++){
+		lst[i].setAttribute('cost', Number(lst[i].getAttribute('oCost')) * Math.ceil((waveIndex+1)/25))
+	}
 	draw();
 }
 
@@ -805,11 +810,11 @@ function draw(){
 		//Determines if the sprite has been killed add coin to your bank and remove sprite from list
 		}else if (spriteArr[i].hpLeft <= 0){
 			money += spriteArr[i].coin;
-			spriteArr.splice(i, 1);	
+			spriteArr.splice(i, 1);
+			i--;
 		//Otherwise redraw sprite
 		}else{
-			spriteArr[i].draw(); 
-			spriteArr[i].inRange = false;
+			spriteArr[i].draw();
 		}
 	}
 
@@ -870,18 +875,18 @@ function displayMenuVars(){
 function drawStaticBoard(){	
 //	Paint the background green	
 	ctx.fillStyle = backgroundColor;
-	ctx.fillRect(0,0,boardDem,boardDem);
+	ctx.fillRect(0,0,boardDemW,boardDemH);
 
 //	Draw the grid on the board.	
 	if (toggleGrid){	
 		ctx.beginPath();
 		ctx.strokeStyle = gridColor;
-		for (var i = 0; i < boardDem; i+=10){
+		for (var i = 0; i < Math.max(boardDemH, boardDemW); i+=gridSnap){
 			ctx.moveTo(i, 0);
-			ctx.lineTo(i, boardDem);
+			ctx.lineTo(i, boardDemH);
 			
 			ctx.moveTo(0, i);
-			ctx.lineTo(boardDem, i);
+			ctx.lineTo(boardDemW, i);
 		}
 		ctx.stroke();
 	}
@@ -903,8 +908,14 @@ function drawStaticBoard(){
 		}
 	}
 
-	
-//	pathBackground = ctx.getImageData(0,0,boardDem,boardDem);
+//	Draw the sprites
+	spriteArr.forEach(function(ele){
+		ele.draw();
+	});
+//	Draw the bullets
+	bulletArr.forEach(function(ele){
+		ele.draw();
+	});
 //	Draw the towers
 	towerArr.forEach(function(ele){
 		ele.draw();
@@ -921,10 +932,10 @@ function initGame(){
 	gameMessages = document.getElementById('gameMessages');
 	updateMenu = document.getElementById('updateMenu');
 	gCanvas = document.getElementById("td_canvas");
-	gCanvas.width = boardDem;
-	gCanvas.height= boardDem;
+	gCanvas.width = boardDemW;
+	gCanvas.height= boardDemH;
 	document.getElementById('gameObjects').style.width = gameMessages.style.width = gCanvas.offsetWidth + gameControls.offsetWidth + 5;
-	gameControls.style.height = boardDem - 30;
+	gameControls.style.height = boardDemH - 30;
 	ctx = gCanvas.getContext("2d");
 	back = ctx.getImageData(0,0,1,1);	
 
@@ -946,9 +957,9 @@ function initGame(){
 	}, false);
 
 //	Set up 2d array holding the board filled state
-	for (var i = 0; i < boardDem/gridDem; i++){
+	for (var i = 0; i < boardDemH/gridDem; i++){
 		var tempArr = [];
-		for (var r = 0; r < boardDem/gridDem; r++){
+		for (var r = 0; r < boardDemW/gridDem; r++){
 			tempArr.push(false);
 		}
 		gridUsed.push(tempArr);
@@ -967,7 +978,7 @@ function initGame(){
 	
 //	Draw the board
 	drawStaticBoard();
-	pathBackground = ctx.getImageData(0,0,boardDem,boardDem);
+	pathBackground = ctx.getImageData(0,0,boardDemW,boardDemH);
 
 //	make the path not tower placeable.
 	for (var i = 0; i < spritePath.length-1; i++){
@@ -977,7 +988,7 @@ function initGame(){
 		//Vertical Path
 		if (node1.x === node2.x){
 			startR = Math.max(0, Math.min(node1.y, node2.y) / gridDem - pathPadding);
-			r = Math.min(boardDem/gridDem , Math.max(node1.y, node2.y) / gridDem + pathPadding);
+			r = Math.min(boardDemW/gridDem , Math.max(node1.y, node2.y) / gridDem + pathPadding);
 			startC = node1.x/gridDem - pathPadding;
 			c = startC + pathPadding * 2;
 //		Horizontal Path
@@ -987,7 +998,6 @@ function initGame(){
 			startC = Math.min(node1.x, node2.x) / gridDem - pathPadding;
 			c = Math.max(node1.x, node2.x) / gridDem + pathPadding;
 		}
-
 //		Make the grid locations for the path unplaceable for towers
 		for (var t = Math.min(startR, r); t < Math.max(r, startR); t++){
 			for(var x = Math.min(startC, c); x < Math.max(c, startC); x++){
